@@ -1,0 +1,304 @@
+---
+title: "Séries Temporais"
+author: "Filipe Coelho de Lima Duarte"
+date: "8/18/2019"
+output:
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+# Atividade nº 1
+
+Escolher 3 séries temporais no repositório TDSL.
+
+```{r echo=FALSE, results='hide',message=FALSE}
+devtools::install_github("FinYang/tsdl")
+library(tsdl)
+```
+
+Uma série para cada tipo:
+
+a. Com sazonalidade
+b. Com tendência determinística
+c. Série Financeira ou climática
+
+Para cada série plotar:
+
+a. A série própria e nas escalas de tempo: Mês e Ano.
+b. ACF e PACF.
+c. Série decomposta.
+d. ACF sobre o resíduo da decomposição.
+
+# 1ª Série: Com Sazonalidade
+
+```{r echo=FALSE, results='hide',message=FALSE}
+base <- subset(tsdl, "Meteorology")
+dados <- ts(base[[5]], frequency = 12, start = c(1959, 1), end = c(1990,12))
+```
+
+A série com sazonalidade foi a 5ª série de Metereologia. Essa série representa a mensuração mensal de dióxido de carbono sobre Manua Loa, Hawaii, entre janeiro de 1959 e dezembro de 1990.
+
+## Gráfico da série
+
+Essa série possui uma tendência crescente como pode ser visto no gráfico abaixo. Além disso, ela possui sazonalidade, uma vez que possui picos e vales frequentes de mesmo padrão ao longo do ano. 
+
+
+```{r echo=FALSE, results='hide',message=FALSE}
+plot(base[[5]], ylab = "Emissão de Dióxido de Carbono", xlab = "Ano")
+```
+
+## Boxplot da série
+
+Vamos visualizar no gráfico de boxplot abaixo quais meses representam os aumentos sazonais da emissão dióxido de carbono. 
+
+
+```{r echo=FALSE, results='hide',message=FALSE}
+boxplot(dados ~ cycle(dados), xlab = "Mês", main = "Gráfico Boxplot mensal")
+```
+
+Verifica-se um aumento na emissão do dióxido de carbono em maio e uma redução considerável da emissão nos meses de setembro e outubro. 
+
+## Tendência da série 
+
+O próximo elemento a ser analisado é a tendência da série. Essa pode ser obtida através da agregação dos dados de forma anual. 
+
+```{r echo = FALSE, results = "hide", message=FALSE}
+plot(aggregate(dados), ylab = "Emissão de Dióxido de Carbono", xlab = "Ano", main = "Gráfico da Tendência")
+```
+
+Diante do gráfico acima, verifica-se uma forte tendência crescente. Essa tendência apresenta um comportamento determinístico, pois não há uma quebra estrutural que demonstre uma inversão em sua direção. 
+
+## Decomposição da série
+
+No que diz respeito à decomposição da série temporal, foi realizada a decomposição aditiva, pelo fato da variância não aumentar ao longo do tempo, como pode-se verificar abaixo. 
+
+```{r echo = FALSE, results="hide", message=FALSE}
+plot(decompose(dados))
+```
+
+A decomposição aditiva é representada pela soma dos componentes: Tendência, Sazonalidade e Erro, como demonstra a equação a seguir:
+
+$$ 
+x_t = m_t + s_t + zt
+$$
+onde, $m_t$ é a tendência, $s_t$ é a sazonalidade e $z_t$ é o termo do erro. 
+
+Desse gráfico, percebe-se a tendência crescente e com comportamento semelhante ao linear; e sazonalidade expressiva relevando comportamento cíclico presente nos meses de maio e setembro/outubro. 
+
+## gráfico da série entre xt e xt+1
+
+O gráfico abaixo apresenta o valor da série $x_t$ em relação ao $x_{t+1}$. 
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+plot(dados[1:383], dados[2:384], xlab = "x_t", ylab = "x_t+1")
+```
+
+Podemos perceber a forte autocorrelação serial, motivo pelo qual existe um comportamento linear e com tendência crescente.  
+
+## Correlograma
+
+
+O gráfico ACF apresenta no eixo x os lags e no eixo y, o valor da autocorrelação em cada lag. Portanto, conclui-se que ela possui valores elevados de autocorrelação serial. 
+
+O gráfico da função de autocorrelação serial demonstra que a série possui um decaimento muito suave da autocorrelação, com forte autocorrelação em cada lag. Além disso, percebe-se a sazonalidade, pois a autocorrelação tende a aumentar em alguns lags posteriores de forma recorrente.  
+
+```{r echo = FALSE, results="hide", message=FALSE}
+acf(dados, main = "ACF")
+```
+
+No que diz respeito ao PACF, função de autocorrelação parcial, verifica-se a perda de autocorrelação a partir do primeiro lag. Isso demonstra que a série tem autocorrelação com lag 1.
+
+```{r echo = FALSE, results="hide", message=FALSE}
+pacf(dados, main = "PACF")
+```
+
+Sendo assim, o lag 1 possui autocorrelação negativa enquanto que os demais, do ponto de vista parcial, não são significativos.
+
+## ACF sobre o resíduo da decomposição
+
+A seguir, verifica-se o gráfico ACF para o resíduo da série.
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+decomposicao_1 <- decompose(dados)
+acf(decomposicao_1$random[!is.na(decomposicao_1$random)], main = "ACF sobre o resíduo da decomposição")
+```
+
+Percebe-se uma considerável autocorrelação entre a série e os lags 2, 5, 6 e 7. Contudo, há uma inversão do sinal do lag 2 em relação ao lag 5. 
+
+# 2ª Série: com tendência determinística
+
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+base2 <- subset(tsdl, "Demography")
+dados2 <- base2[[1]]
+```
+
+A segunda série desta atividade possui uma tendência determinística. O seu gráfico nos lembra uma reta. 
+A série escolhida é demográfica e representa a população civil autraliana, em milhares de pessoas, entre fevereiro de 1978 e abril de 1991.
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+plot(dados2, ylab = "População australiana (em milhares)", xlab = "Ano")
+```
+
+## Boxplot da série
+
+Vamos visualizar no gráfico de boxplot abaixo quais meses representam os aumentos sazonais da população civil australiana. 
+
+
+```{r echo=FALSE, results='hide',message=FALSE}
+boxplot(dados2 ~ cycle(dados2), xlab = "Mês", main = "Gráfico Boxplot mensal")
+```
+
+Não se verifica uma sazonalidade explícita nesta série, pois o gráfico de boxplot não demonstra diferenças significativas entre os meses, apenas uma leve elevação no início do ano. Isso corrobora com o que foi verificado a partir do gráfico da série, quando não verificamos picos recorrentes ao longo do tempo. 
+
+## Tendência da série 
+
+O próximo elemento a ser analisado é a tendência da série. Obtém-se através da agregação dos dados mensais em anuais. Diante disso, tem-se abaixo o gráfico da tendência determinística, haja vista o seu comportamento é semelhante ao de uma reta. 
+
+```{r echo = FALSE, results = "hide", message=FALSE}
+plot(aggregate(dados2), ylab = "População civil australiana (em milhares)", xlab = "Ano", main = "Gráfico da Tendência")
+```
+
+É evidente que a série da população civil australiana é semlhante à tendência estimada para a própria série (gráfico acima). Sendo assim, será necessário realizar a decomposição da série para investigar o componente do ruído. 
+
+## Decomposição da série
+
+No que diz respeito à decomposição da série temporal, foi realizada a decomposição aditiva, pelo fato da variância não aumentar ao longo do tempo, como pode-se verificar abaixo. 
+
+```{r echo = FALSE, results="hide", message=FALSE}
+plot(decompose(dados2))
+```
+
+Desse gráfico, percebe-se a tendência crescente e com comportamento semelhante ao linear, que pode ser modelada por meio de uma regressão linear em função do tempo. Ainda, verifica-se uma certa sazonalidade nesta série e um ruído com natureza estocástica. O ruído pode-se dizer estocástico pois não exibe um padrão recorrente nem que consiga ser modelado por uma equação matemática determinística. 
+
+## gráfico da série entre xt e xt+1
+
+O gráfico abaixo apresenta o valor da série $x_t$ em relação ao $x_{t+1}$. 
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+plot(dados2[1:158], dados2[2:159], xlab = "x_t", ylab = "x_t+1")
+```
+
+A partir desse gráfico podemos perceber a forte autocorrelação serial, motivo pelo qual existe um comportamento linear e com tendência crescente. Entretanto, comparado com a 1ª série, esta (População Australiana em milhares de pessoas) possui menor espaçamento entre os pontos, isto é, menor variância.
+
+
+## Correlograma
+
+O gráfico ACF apresenta no eixo x os lags e no eixo y, o valor da autocorrelação em cada lag. Portanto, conclui-se que ela possui elevados valores de autocorrelação serial. 
+
+O gráfico da função de autocorrelação serial demonstra que a série possui um decaimento suave da autocorrelação dos lags, com forte autocorrelação em cada lag. Além disso, não percebe-se sazonalidade uma vez que a autocorrelação não torna a aumentar entre os lags, pois se verifica apenas o seu decaimento.  
+
+```{r echo = FALSE, results="hide", message=FALSE}
+acf(dados2, main = "ACF")
+```
+
+No que diz respeito ao PACF, função de autocorrelação parcial, verifica-se a perda de autocorrelação a partir do primeiro lag, de tal maneira que as autocorrelações não são significativas. Isso demonstra que a série não apresenta autocorrelação nem com o lag 1. Ela mantém esse padrão entre os lags.
+
+```{r echo = FALSE, results="hide", message=FALSE}
+pacf(dados2, main = "PACF")
+```
+
+Sendo assim, não há presença de autocorrelação para valores a partir do lag 1 em diante, isto é, entre o lag 1, lag 2 etc.   
+
+## ACF sobre o resíduo da decomposição
+
+A seguir, verifica-se o gráfico ACF para o resíduo da série.
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+decomposicao_2 <- decompose(dados2)
+acf(decomposicao_2$random[!is.na(decomposicao_2$random)], main = "ACF sobre o resíduo da decomposição")
+```
+
+Percebe-se uma considerável autocorrelação entre a série e os lags 1, 2, 3, 5, 6, 7 e 8. Demonstrando que o seu resíduo possui autocorrelação positiva para os valores mais próximos e negativa para os mais distantes (até o lag 8). Ademais, verifica-se uma certa sazonalidade quando se nota que a partir do lag 5 ela torna a aumentar. Contudo, há uma inversão do sinal do lag 3 em relação ao lag 4, o que se repete ao longo dos lags.  
+
+# 3ª Série: Financeira
+
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+base3 <- subset(tsdl, "Finance")
+dados3 <- base3[[22]]
+```
+
+A série Financeira escolhida foi a que representa o valor do índice trimestral do S&P 500 entre 1900 e 1997. Abaixo, pode-se verificar o seu gráfico:
+
+```{r, echo = FALSE, message=FALSE, results = "hide"}
+plot(dados3, main = "Índice trimestral do S&P 500")
+```
+
+O gráfico da série do valor Índice trimestral do S&P 500 apresenta um padrão sem tendência crescente ou descrescente ao longo se analisarmos a série completa. Contudo, se observamos algumas janelas temporais, isto é, certos períodos específicos é possível verificar certa tendência, como se observa para os últimos dois anos da série. 
+
+## Boxplot da série
+
+Vamos visualizar no gráfico de boxplot abaixo se existe sazonalidade na série ao longo do ano. 
+
+
+```{r echo=FALSE, results='hide',message=FALSE}
+boxplot(dados3 ~ cycle(dados3), main = "Boxplot do Índice trimestral do S&P 500", xlab = "Trimestre")
+```
+
+A partir do gráfico de boxplot, não se verifica sazonalidade na série do Índice trimestral do S&P 500, pois não é possível observar diferença significante entre as distribuições dos dados para o período analisado.
+
+## Tendência da série 
+
+O próximo elemento a ser analisado é a tendência da série. Obtém-se através da agregação dos dados por trimestres. Diante disso, tem-se abaixo o gráfico da tendência que representa uma média móvel trimestral. 
+
+```{r echo = FALSE, results = "hide", message=FALSE}
+plot(aggregate(dados3), ylab = "Índice trimestral do S&P 500", xlab = "Tempo", main = "Gráfico da Tendência")
+```
+
+É evidente que a série não apresenta tendência determinística, pois não se observa um padrão crescente ou descrescente ao longo de toda a série. Contudo, em alguns períodos específicos, como nos últimos 2 anos, tem-se um padrão crescente ou descrescente recorrente, mas que logo sofre uma quebra estrutural. 
+
+
+## Decomposição da série
+
+No que diz respeito à decomposição da série temporal, foi realizada a decomposição aditiva.
+
+```{r echo = FALSE, results="hide", message=FALSE}
+plot(decompose(dados3))
+```
+
+Desse gráfico, percebe-se que não há a tendência crescente ou decrescente como se observou no gráfico anterior. No que diz respeito à sazonalidade, verifica-se um efeito sazonal; quanto ao ruído, é perceptível sua natureza estocástica. O ruído pode-se dizer estocástico pois não exibe um padrão recorrente nem que consiga ser modelado por uma equação matemática determinística. 
+
+## gráfico da série entre xt e xt+1
+
+O gráfico abaixo apresenta o valor da série $x_t$ em relação ao $x_{t+1}$. 
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+plot(dados3[1:387], dados3[2:388], xlab = "x_t", ylab = "x_t+1")
+```
+
+A partir desse gráfico podemos perceber a forte autocorrelação serial, motivo pelo qual existe um comportamento linear e com tendência crescente. Entretanto, comparado com a 1ª e 2ª série, esta (Índice trimestral S&P 500) possui maior espaçamento entre os pontos, isto é, maior variância. Além disso, nota-se um aumento da variância ao longo do tempo. 
+
+## Correlograma
+
+O gráfico ACF apresenta no eixo x os lags e no eixo y, o valor da autocorrelação em cada lag. Portanto, conclui-se que ela possui elevados valores de autocorrelação serial. 
+
+O gráfico da função de autocorrelação serial demonstra que a série possui um decaimento suave da autocorrelação dos lags, com forte autocorrelação em cada lag. Além disso, não percebe-se sazonalidade uma vez que a autocorrelação não torna a aumentar entre os lags, pois se verifica apenas o seu decaimento.  
+
+```{r echo = FALSE, results="hide", message=FALSE}
+acf(dados, main = "ACF")
+```
+
+No que diz respeito ao PACF, função de autocorrelação parcial, verifica-se a autocorrelação negativa de forma parcialmente significativa no primeiro lag. Contudo, os demais lags não demonstram estatística significativa. 
+
+```{r echo = FALSE, results="hide", message=FALSE}
+pacf(dados3, main = "PACF")
+```
+
+Sendo assim, não há presença de autocorrelação para valores a partir do lag 1 em diante.   
+
+## ACF sobre o resíduo da decomposição
+
+A seguir, verifica-se o gráfico ACF para o resíduo da série.
+
+```{r echo = FALSE, message=FALSE, results="hide"}
+decomposicao_3 <- decompose(dados3)
+acf(decomposicao_3$random[!is.na(decomposicao_3$random)], main = "ACF sobre o resíduo da decomposição")
+```
+
+Percebe-se uma considerável autocorrelação negativa entre a série e o lag 2. Contudo, para os demais lags, não se nota autocorrelação estatisticamente significativa. Isso pode indicar que o resíduo da série pode possuir uma certa correlação negativa com o 2 trimestre do ano. 
+
+Portanto, a série financeira possui um comportamento complexo em relação às séries anteriores, haja vista sua natureza estocástica ser mais preponderante. 
+
+
