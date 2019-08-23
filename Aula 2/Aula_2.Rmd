@@ -187,3 +187,42 @@ ccf(x,y)
  
 ## Capítulo 4 - Basic Stochastic Models
 
+O primeiro modelo é o white noise. IID com média 0 e desvio-padrão constante. 
+
+O segundo é o Random-Walk: 
+Sendo $x_t$ uma série tempora. Então $x_t$ é um Random-Walk se:
+$$
+x_t = x_{t−1} + w_t
+$$
+
+Onde $w_t$ é um ruído branco (white noise). Substituindo $x_{t-1} = x_{t-2} + w_{t-1}$ na equação acima e substituindo por $x_{t-2}$, seguido por $x_{t-3}$ e assim vai: 
+
+$$
+x_t =w_t +w_{t−1} +w_{t−2} +...
+$$
+Realizando a diferença na série Random-Walk, isto é, $x_t - x_{t-1} = w_t$, produzimos uma série estacionária que é um ruído branco. 
+
+Vamos simular:
+
+```{r}
+x <- w <- rnorm(1000)
+for (t in 2:1000) {
+  x[t] <- x[t - 1] + w[t]
+  }
+plot(x, type = "l")
+```
+
+Veremos que o acf de um Random-Walk demonstra o leve decaimento das autocorrelações:
+
+```{r}
+acf(x)
+```
+
+Fazendo o acf da diferença:
+
+```{r}
+acf(diff(x))
+```
+
+Percebemos que ela perde toda a correlação, haja vista a diferença ser um ruído branco, isto é, uma série iid.
+
