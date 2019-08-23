@@ -35,6 +35,9 @@ d. ACF sobre o resíduo da decomposição.
 ```{r echo=FALSE, results='hide',message=FALSE}
 base <- subset(tsdl, "Meteorology")
 dados <- ts(base[[5]], frequency = 12, start = c(1959, 1), end = c(1990,12))
+date <- seq(as.Date("1959-01-01"), as.Date("1990-12-01"), by = "month")
+serie1 <- data.frame(date = date, serie = dados[1:384])
+write.csv(serie1, "serie1.csv", row.names = FALSE)
 ```
 
 A série com sazonalidade foi a 5ª série de Metereologia. Essa série representa a mensuração mensal de dióxido de carbono sobre Manua Loa, Hawaii, entre janeiro de 1959 e dezembro de 1990.
@@ -132,6 +135,9 @@ Percebe-se uma considerável autocorrelação entre a série e os lags 2, 5, 6 e
 ```{r echo = FALSE, message=FALSE, results="hide"}
 base2 <- subset(tsdl, "Demography")
 dados2 <- base2[[1]]
+date <- seq(as.Date("1978-01-01"), as.Date("1991-03-01"), by = "month")
+serie2 <- data.frame(date = date, serie = dados2[1:159])
+write.csv(serie2, "serie2.csv", row.names = FALSE)
 ```
 
 A segunda série desta atividade possui uma tendência determinística. O seu gráfico nos lembra uma reta. 
