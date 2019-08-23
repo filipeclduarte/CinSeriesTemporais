@@ -1,0 +1,189 @@
+---
+title: "Aula 2 - Exponential Smoothing, Holt-Winters and Autoregressive"
+output:
+  html_document:
+    df_print: paged
+---
+
+## Capítulo 3 - Forecasting Strategies
+
+### Building approvals publications
+
+Carregando os dados:
+```{r}
+Build.dat <- read.table("ApprovActiv.dat", header=T)
+```
+
+Visualizando os dados:
+```{r}
+head(Build.dat)
+```
+
+Temos duas séries, Approvals e Activity. Vamos criar as ts objects:
+```{r}
+App.ts <- ts(Build.dat$Approvals, start = c(1996,1), freq=4)
+Act.ts <- ts(Build.dat$Activity, start = c(1996,1), freq=4)
+```
+
+Visualizando ambas as séries:
+```{r}
+ts.plot(App.ts, Act.ts, lty=c(1,3))
+```
+
+Aprovações e atividade de construção na Austrália. 
+
+### Cross-correlation
+
+A função de cross-covariance é:
+$$
+\gamma _k(x,y) = E[(x_{t+k}-\mu_x)(y_t - \mu_y)]
+$$
+
+enquanto que a função de cross-correlação 
+$$
+\rho _k(x,y) = \frac{\gamma _k(x,y)}{\sigma _x \sigma _y}
+$$
+
+O correlograma com a cross-correlation:
+```{r}
+acf(ts.union(App.ts, Act.ts))
+```
+
+Decomposição das séries:
+```{r}
+app.ran <- decompose(App.ts)$random
+app.ran.ts <- window(app.ran, start = c(1996,3), end = c(2006,1))
+act.ran <- decompose(Act.ts)$random
+act.ran.ts <- window(act.ran, start = c(1996,3), end = c(2006,1))
+acf(ts.union(app.ran.ts,act.ran.ts))
+ccf(app.ran.ts, act.ran.ts)
+```
+
+
+## Exponential Smoothing
+
+$$
+x_t = \mu _t + w_t
+$$
+
+$$
+a_t = \alpha x_t + (1 - \alpha)a_{t-1}
+$$
+onde $0<\alpha < 1$ e $w_t$ são varáveis aleatórias independentes e identicamente distribuídas com média 0 e desvio $\sigma$.
+
+O coeficiente $a_t$ é a média móvel exponencialmente ponderada no tempo t. O valor de $\alpha$ determina o grau da suavização. 
+
+A previsão para $\hat x_{n+k|n}=a_n$, em que $k=1,2,...$. O erro de um passo a frente é:
+$$
+e_t = x_t - \hat x_{t|t-1} = x_t - a_{t-1} 
+$$
+
+Vamos aos dados:
+
+```{r}
+Motor.dat <- read.table("motororg.dat", header = TRUE) 
+```
+
+
+```{r}
+Comp.ts <- ts(Motor.dat$complaints, start = c(1996, 1), freq = 12)
+```
+
+```{r}
+plot(Comp.ts, xlab = "Time / months", ylab = "Complaints")
+```
+
+É perceptível que não há uma tendência determinística nem uma sazonalidade explícita. 
+
+Então, vamos aplicar o modelo Exponential Smoothing, que é um caso específico do Holt-Winters:
+
+```{r}
+Comp.hw1 <- HoltWinters(Comp.ts, beta = 0, gamma = 0)
+Comp.hw1
+```
+
+Agora iremos visualizar o modelo:
+```{r}
+plot(Comp.hw1)
+```
+
+Vamos testar com o alpha delimitado de forma explícita
+```{r}
+Comp.hw2 <- HoltWinters(Comp.ts, alpha = 0.2, beta = 0, gamma = 0)
+Comp.hw2
+```
+
+```{r}
+plot(Comp.hw2)
+```
+
+## Holt-Winters
+
+Os dados utilizados são da base wine.dat
+
+```{r}
+wine.dat <- read.table("wine.dat", header = TRUE)
+```
+
+```{r}
+sweetw.ts <- ts(wine.dat$sweetw, start = c(1980,1), freq=12)
+```
+
+```{r}
+plot(sweetw.ts, xlab = "Time (months)", ylab = "sales (1000 litres)")
+```
+
+```{r}
+sweetw.hw <- HoltWinters(sweetw.ts, seasonal = "mult")
+```
+
+```{r}
+sweetw.hw
+sqrt(sweetw.hw$SSE/length(sweetw.ts))
+sd(sweetw.ts)
+```
+
+```{r}
+plot(sweetw.hw$fitted)
+```
+
+
+```{r}
+plot(sweetw.hw)
+```
+
+
+Four-year-ahead forecasts for the air passenger data
+
+```{r}
+data(AirPassengers)
+AP <- AirPassengers
+```
+
+```{r}
+AP.hw <- HoltWinters(AP, seasonal = "mult")
+```
+
+```{r}
+plot(AP.hw)
+```
+
+```{r}
+AP.predict <- predict(AP.hw, n.ahead = 4 * 12)
+```
+
+```{r}
+ts.plot(AP, AP.predict, lty = 1:2)
+```
+
+#### Exercício
+
+```{r}
+w <- 1:100
+x <- w + 100*rnorm(100)
+y <- w + 100*rnorm(100)
+ccf(x,y)
+```
+ 
+## Capítulo 4 - Basic Stochastic Models
+
