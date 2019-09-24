@@ -1,0 +1,19 @@
+---
+title: "Aula 4"
+output: html_notebook
+---
+
+# Cap. 6 and 7
+
+## Cap. 6 - Stationary Models
+
+### Strictly stationary series
+
+A time series model $x_t$ is strictly stationary if the joint statistical distribution of $x_{t_1},...,x_{t_n}$ is the same as the joint distribution of $x_{t_1+m},...,x_{t_n+m}$ for all $t_1, ..., t_n$ and $m$, so that the distribution is unchanged after an arbitrary time shift. 
+
+Note that strict stationarity implies that the mean and variance are constant in time and that the autocovariance $Cov(x_t, x_s)$ only depends on lag $k = |t − s|$ and can be written $\gamma(k)$. 
+
+If a series is not strictly stationary but the mean and variance are constant in time and the autocovariance only depends on the lag, then the series is called second-order stationary.
+
+## Cap.7 - Non-stationary Models
+

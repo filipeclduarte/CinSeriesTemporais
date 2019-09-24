@@ -1,0 +1,612 @@
+---
+title: "Métodos Clássicos para Previsão de Séries Temporais"
+output: html_notebook
+author: Filipe Coelho de Lima Duarte
+---
+
+### Atividade:
+
+Cada aluno deverá escrever um relatório contendo as análises e incluindo seguinte:
+
+1. Utilizar, no experimento, 2 a 4 séries temporais, por exemplo, do repositório TDSL. Devem ser escolhidas séries temporais com caraterísticas diferentes, sendo uma delas financeira ou climática (para apresentar volatilidade).
+
+2. Para cada série, fazer previsões usando os modelos Holt-Winters, AR, ARMA, ARIMA, GARCH e Kalman. Apresentar os gráficos de treinamento, teste e o resultado da previsão considerando o erro médio quadrático (MSE).
+
+3. Para cada modelo gerado, JUSTIFICAR a escolha dos parâmetros usados. Para isso utilizar os gráficos de Autocorrelação e Autocorrelação Parcial.
+
+### Bibliotecas utilizadas
+
+Este trabalho tem como objetivo apresentar um estudo dos métodos clássicos para previsão de séries temporais da disciplina de Tópicos Especiais em Inteligência Artificial IV: Séries Temporais. Apresentamos abaixo as bibliotecas utilizadas e a função de cálculo do erro quadrático médio (MSE).
+
+```{r message = FALSE}
+library(forecast)
+library(readr)
+library(ggplot2)
+library(tseries)
+library(quantmod)
+library(sspir)
+library(dplyr)
+library(tidyr)
+MSE <- function(y, yhat){
+  mse <- mean((y - yhat)^2)
+  return(mse)
+}
+```
+
+
+### 1ª Série Temporal: Letras do Tesouro Nacional com vencimento em 01-01-2021
+
+Os dados foram coletados por meio do pacote 'GetTDData'. 
+
+Abaixo, apresento o gráfico da série temporal completa para o período de 01/01/2015 - 20/09/2019, as 10 primeiras observações e um resumo estatístico:
+
+```{r echo = FALSE, message=FALSE, results='hide'}
+library(GetTDData)
+asset.codes = 'LTN'
+maturity <- '010121'
+my.flag <- download.TD.data(asset.codes = asset.codes)
+df.TD <- read.TD.files(asset.codes = asset.codes, maturity = maturity)
+```
+
+```{r echo = FALSE}
+LTN <- df.TD[,3]
+LTN <- ts(LTN, start=c(2015, 3, 10), end=c(2019, 9, 20), frequency = 250)
+# gráfico da série temporal da LTN
+autoplot(LTN) + ggtitle("Série de preço do título LTN") + xlab("") + ylab("") 
+# os 10 primeiros valores
+cat('Os 10 primeiros valores da série: \n')
+LTN[1:10]
+cat('\n')
+# resumo estatístico
+cat('Estatísticas: \n')
+summary(LTN)
+cat('\n')
+cat("desvio-padrão =",sd(LTN))
+```
+
+O primeiro passo da modelagem será realizar a decomposição da série para verificar se há comportamento de tendência e sazonalidade:
+
+```{r echo = FALSE, message=FALSE}
+LTN %>% decompose(type="additive") %>%
+  autoplot() + xlab("") +
+  ggtitle("Decomposição aditiva clássica da série LTN")
+```
+
+O gráfico da decomposição demonstra uma a existência de uma tendência crescente linear e um comportamento sazonal. Desse modo, selecionaremos uma parcela dos dados para realizar o procedimento de treinamento (estimação dos parâmetros) que compreenderá o período: 10/03/2015 - 31/12/2017. Os dados de teste representam a amostra que servirá de base para avaliar a qualidade de previsão dos modelos. O período de teste será entre: 01/01/2018 e 20/09/2019. 
+
+```{r echo = FALSE, message=FALSE}
+
+LTN_treinamento <- window(LTN, end = c(2018,3))
+LTN_teste <- window(LTN, start=c(2018,4))
+
+cat('Tamanho da amostra de treinamento :',length(LTN_treinamento), '\n')
+cat('Tamanho da amostra de teste :', length(LTN_teste))
+
+autoplot(LTN_treinamento) + autolayer(LTN_teste, series = "Teste")+
+  ggtitle("Preço do LTN Amostra de Treinamento") + xlab("") 
+```
+
+Percebe-se por meio do gráfico de treinamento e teste que a série de preços da LTN possui um comportamento padrão a partir do ano de 2016. A seguir realizaremos a modelagem dos dados. 
+
+#### Holt-Winters
+
+O modelo Holt-Winters utiliza-se de três equações para modelar a série temporal, são elas: sazonalidade, tendência e nível. O modelo aditivo utilizado possui a seguinte equação:
+$$Z_t = \mu_t + T_t + S_t + a_t $$	
+
+Portanto, abaixo estão expostos os gráficos da série de preços da LTN de treinamento com o ajuste do modelo Holt-Winters. Em seguida, pode-se visualizar o gráfico da previsão do Holt-Winters e a série de preços da LTN para a amostra de teste. 
+
+```{r echo = FALSE, message=FALSE}
+# treinando modelo Holt-Winters nos dados de treinamento LTN
+fit_hw_LTN <- HoltWinters(LTN_treinamento)
+LTN_HW <- fit_hw_LTN$fitted[,1]
+LTN_hw_forecast <- forecast::forecast(fit_hw_LTN, h=256)
+# Gráfico do LTN de treinamento e Holt-Winters
+autoplot(LTN_treinamento) + autolayer(LTN_HW,series = "Holt-Winters") + 
+  ggtitle("LTN - Holt-Winters - Treinamento") + ylab("") + xlab("")
+
+# Gráfico do LTN treinamento, teste e previsão pelo Holt-Winters
+autoplot(LTN_treinamento) + autolayer(LTN_teste, series = 'LTN teste') + 
+  autolayer(LTN_hw_forecast, PI=FALSE, series = 'Holt Winters') + 
+  ggtitle('LTN - Holt-Winters - Previsão') + ylab("") + xlab("")
+
+# Cálculo do MSE de teste do Holt-Winters 
+mse_LTN_hw <- MSE(LTN_teste,LTN_hw_forecast$mean)
+mse_df <- data.frame(Modelo = 'Holt-Winters', MSE = mse_LTN_hw)
+cat('MSE Holt Winters =',mse_LTN_hw)
+```
+
+Diante dos gráficos acima, percebe-se que o modelo Holt-Winters apresentou overfitting, pois conseguiu um bom ajuste aos dados de treinamento e um fraco ajustamento (visualizado pelo gráfico) aos dados de teste. Além disso, o MSE calculado foi de **`r mse_LTN_hw`**. Esse valor poderá ser comparado com outros modelos que treinaremos a seguir.
+
+#### AR
+
+Diz-se que uma série temporal $x_t$ é um processo autorregressivo de ordem $p$, abreviado como $AR(p)$, se 
+
+$$
+x_t = \alpha _1 x_{t-1} + \alpha _2 x_{t-2} + ... + \alpha _p x_{t-p} + w_t
+$$
+em que, $w_t$ é um ruído branco e $\alpha _i$ são os parâmetros do modelo de tal maneira que são diferentes de zero. Além disso, o modelo AR tem como premissa a estacionariedade da série temporal. Sendo assim, se a série temporal não for estacionária, será necessário diferenciá-la. 
+
+Utilizaremos o teste Augmented Dickey-Fuller (ADF) para avaliar se a série possui raiz unitária, isto é, se ela não é estacionária. A hipótese nula do teste diz que existe pelo menos uma raiz unitária dentro do círculo unitário, ou seja, que a série é não estacionária. 
+
+```{r}
+adf.test(LTN_treinamento)
+adf.test(LTN_teste)
+```
+
+Como se pode verificar, o p-value foi 0.646 que é maior do que 5%. Esse resultado nos diz que não temos evidências suficientes para rejeitar a hipótese nula de que a série é não estacionária. Portanto, precisamos realizar a primeira diferença de tal maneira a transformar a série de preços da LTN em uma série estacionária. 
+
+```{r}
+LTN_treinamento_diff <- diff(LTN_treinamento)
+LTN_teste_diff <- diff(LTN_teste)
+```
+
+Realizada a primeira diferença para a série de preços da LTN, realizaremos novamente o teste ADF.
+
+```{r message=FALSE}
+adf.test(LTN_treinamento_diff)
+adf.test(LTN_teste_diff)
+```
+
+Os resultados apresentam p-valor menores do que 5%, indicando que há evidências para rejeitar a hipótese nula de presença de raiz unitária. Agora podemos utilizar o modelo AR para as séries diferenciadas. 
+
+O primeiro passo na identificação de um modelo autorregressivo se dá por meio da análise do correlograma acf e do pacf. 
+
+```{r message=FALSE}
+ggAcf(LTN_treinamento_diff,30) 
+ggPacf(LTN_treinamento_diff,30)
+```
+
+Conforme os gráficos ACF e PACF, apenas o lag de ordem 4 apresenta correlação significativa, indicando que o modelo pode ser um AR(4). Contudo, o gráfico ACF não possui um decaimento exponencial que é comum dos modelos AR. Abaixo testaremos essa hipótese de modelagem com AR(4).
+
+```{r message=FALSE}
+LTN_ar <- Arima(LTN_treinamento_diff, order = c(4,0,0))
+cat('Resultados do modelo AR(4) para a série diferenciada de preços da LTN:\n')
+LTN_ar 
+cat('\nEstatística dos coeficientes, isto é, a divisão do coeficiente pela variância:\n')
+LTN_ar_estat <- LTN_ar$coef/diag(LTN_ar$var.coef)
+LTN_ar_estat
+```
+
+Agora podemos plotar o gráfico do modelo ajustado AR(4) e o gráfico da previsão para os dados de teste.
+
+```{r message=FALSE}
+LTN_ar_forecast <- forecast::forecast(LTN_ar, h=256)
+
+autoplot(LTN_treinamento_diff) + autolayer(LTN_ar$fitted, series = 'AR(4)') + 
+  ggtitle("LTN - AR(4) - Treinamento")+ xlab("") + ylab("")
+
+autoplot(LTN_teste_diff) + autolayer(LTN_ar_forecast$mean, series = 'Previsão - AR(4)') + 
+    ggtitle("LTN - AR(4) - Previsão")+ xlab("") + ylab("")
+
+# realizando a previsão na série de preços sem a diferenciação
+LTN_ar_forecast_mean <- ts(cumsum(LTN_ar_forecast$mean) + LTN_treinamento[751], start =c(2018,1), frequency = 250)
+autoplot(LTN_teste, series = 'LTN-Teste') + autolayer(LTN_ar_forecast_mean, series = 'Previsão-AR(4)') + xlab('') + ylab('')
+```
+
+
+Os gráficos demonstram um fraco ajuste do modelo AR(4) aos dados de treinamento e de teste. 
+A seguir, calcularemos o MSE para o modelo AR(4).
+
+```{r}
+mse_LTN_ar <- MSE(LTN_teste, LTN_ar_forecast_mean)
+mse_df[,1] <- as.character(mse_df[,1])
+mse_df[2,1] <- 'AR(4)'
+mse_df[2,2] <- mse_LTN_ar
+mse_df
+
+mse_add <- function(df, model, value, i){
+  df[i,1] <- model
+  df[i,2] <- value
+  return(df)
+}
+
+cat('\nErro quadrático médio (MSE) do modelo AR(4) nos dados de Teste:',mse_LTN_ar)
+cat('\nCritério informacional de Akaike (AIC):', LTN_ar$aicc)
+cat('\n')
+```
+
+O erro quadrático médio do modelo AR(4) foi 834.191, ao passo que o AIC foi 4028.589. Comparando o MSE do AR(4) com o modelo estimado pelo Holt-Winters (mse = s`r mse_LTN_hw`), percebe que o autorregressivo apresenta o menor valor, resultando em um modelo com melhor capacidade de previsão. 
+Abaixo, apresentamos os resíduos do model estimado pelo AR(4). 
+
+```{r}
+ggAcf(LTN_ar$residuals, 30)
+ggPacf(LTN_ar$residuals, 30)
+LTN_ar_residuals <- LTN_ar$residuals
+```
+
+Os gráficos ACF e PACF dos resíduos do modelo AR(4) não apresentam autocorrelação e autocorrelação parcial significativas , garantindo que a série conseguiu ser modelada. A seguir, faremos a modelagem da série por meio do modelo ARMA. 
+
+#### ARMA
+
+O modelo ARMA é uma extensão do AR uma vez que incorpora as Médias Móveis dos Erros. Esse modelo necessita que as séries sejam estacionárias e dessa maneira, utilizaremos os dados de treinamento e teste diferenciados. 
+
+Analisaremos novamente o ACF e PACF da série diferenciada para tentar supor uma hipótese de modelo ARMA(p,q).
+
+```{r}
+ggAcf(LTN_treinamento_diff, 30)
+ggPacf(LTN_treinamento_diff, 30)
+```
+
+Dos gráficos ACF e PACF, o modelo escolhido foi o ARMA(4,4), uma vez que o único Lag com significância estatística foi o de valor 4. 
+
+```{r}
+LTN_arma <- Arima(LTN_treinamento_diff, order = c(4,0,4))
+cat('Resultados do modelo ARMA(4,4) para a série diferenciada de preços da LTN:\n')
+LTN_arma
+cat('\nEstatística dos coeficientes, isto é, a divisão do coeficiente pela variância:\n')
+LTN_arma_estat <- LTN_arma$coef/diag(LTN_arma$var.coef)
+LTN_arma_estat
+```
+
+Verifica-se que todos os coeficientes são estatísticamente significativos à 5%, uma vez que as estatísticas são maiores do que 1.645 que é o valor crítico por uma Normal padrão. 
+
+Agora podemos plotar o gráfico do modelo ajustado ARMA(4,4) e o gráfico da previsão para os dados de teste.
+
+```{r message=FALSE}
+LTN_arma_forecast <- forecast::forecast(LTN_arma, 256)
+
+autoplot(LTN_treinamento_diff) + autolayer(LTN_arma$fitted,series = 'ARMA(4,4)') + 
+  ggtitle("LTN - ARMA(4,4) - Treinamento")+ xlab("") + ylab("")
+
+autoplot(LTN_teste_diff) + autolayer(LTN_arma_forecast, PI=FALSE, series = 'Previsão - ARMA(4,4)') + 
+    ggtitle("LTN - ARMA(4,4) - Previsão")+ xlab("") + ylab("")
+
+# realizando a previsão na série de preços sem a diferenciação
+LTN_arma_forecast_mean <- ts(cumsum(LTN_arma_forecast$mean) + LTN_treinamento[751], start =c(2018,4), frequency = 250)
+autoplot(LTN_teste, series = 'LTN-Teste') + autolayer(LTN_arma_forecast_mean, series = 'Previsão-ARMA(4,4)') + xlab('') + ylab('')
+```
+
+Os gráficos demonstram um fraco ajuste do modelo ARMA(4,4) aos dados de treinamento e de teste. 
+A seguir, calcularemos o MSE para o modelo ARMA(4,4).
+
+```{r}
+mse_LTN_arma <- MSE(LTN_teste, LTN_arma_forecast_mean)
+mse_df <- mse_add(mse_df, model = 'ARMA(4,4)', value = mse_LTN_arma, i = 3)
+mse_df
+cat('\nErro quadrático médio (MSE) do modelo ARMA(4,4) nos dados de Teste:',mse_LTN_arma)
+cat('\nCritério informacional de Akaike (AIC):', LTN_arma$aicc)
+
+```
+
+O modelo ARMA(4,4) apresentou um MSE menor do que o AR(4) para os dados de teste. Esse resultado indica que o modelo ARMA(4,4) possui melhor capacidade preditiva.
+
+```{r}
+ggAcf(LTN_arma$residuals,30)
+ggPacf(LTN_arma$residuals,30)
+```
+
+A partir dos gráfico acima pode-se visualizar o ACF e PACF para os resíduos do modelo ARMA(4,4). Esses gráficos demonstram que não restou componenetes para serem modelados, haja vista não existir autocorrelação e autocorrelação parcial significativas. 
+
+#### ARIMA
+
+O modelo ARIMA se diferencia do ARMA, pois possui um operador de diferenciação implementado em sua estimação. Dessa maneira, não é necessário utilizar uma série diferenciada para estimar pelo ARIMA. Basta que defina a ordem de diferenciação no procedimento de estimação. Dessa feita, estimaremos o modelo ARIMA(4,1,4) e ARIMA(4,1,0) com o intuito de avaliar qual desses modelos apresenta menor erro de previsão.
+
+```{r echo=FALSE}
+LTN_arima_1 <- Arima(LTN_treinamento, order = c(4,1,0))
+cat('\nResultados do modelo ARIMA(4,1,0) para a série diferenciada de preços da LTN:\n')
+LTN_arima_1
+cat('\nEstatística dos coeficientes, isto é, a divisão do coeficiente pela variância:\n')
+LTN_arima_1_estat <- LTN_arima_1$coef/diag(LTN_arima_1$var.coef)
+LTN_arima_1_estat
+```
+
+As estatísticas do modelo ARIMA(4,1,0) demonstram coeficientes estatisticamente signficativos. Abaixo, realizamos uma modelagem com os seguintes parâmetros (p=4,d=1,q=4).
+
+```{r echo = FALSE}
+LTN_arima_2 <- Arima(LTN_treinamento, order = c(4,1,4))
+cat('\nResultados do modelo ARIMA(4,1,4) para a série diferenciada de preços da LTN:\n')
+LTN_arima_2
+cat('\nEstatística dos coeficientes, isto é, a divisão do coeficiente pela variância:\n')
+LTN_arima_2_estat <- LTN_arima_2$coef/diag(LTN_arima_2$var.coef)
+LTN_arima_2_estat
+```
+
+O modelo ARIMA(4,1,4) apresentou coeficientes estatisticamente significativos, garantindo a confiabilidade dos estimadores.
+
+Estimados os modelos arima, apresentamos as previsões pontuais e plotamos os gráficos.
+
+```{r}
+LTN_arima_1_forecast <- forecast::forecast(LTN_arima_1, 256)
+LTN_arima_2_forecast <- forecast::forecast(LTN_arima_2, 256)
+
+autoplot(LTN_treinamento) + autolayer(LTN_arima_1$fitted, series = 'ARIMA(4,1,0)')  +
+  ggtitle("LTN - ARIMA(4,1,0) - Treinamento")+ xlab("") + ylab("")
+autoplot(LTN_treinamento)  + 
+  autolayer(LTN_arima_2$fitted, series = 'ARIMA(4,1,4)') +
+  ggtitle("LTN - ARIMA(4,1,4) - Treinamento")+ xlab("") + ylab("")
+
+autoplot(LTN_teste) + autolayer(LTN_arima_1_forecast,PI = FALSE, series = 'ARIMA(4,1,0)')  + 
+    ggtitle("LTN - ARIMA(4,1,0) - Previsão")+ xlab("") + ylab("")
+autoplot(LTN_teste)  + 
+  autolayer(LTN_arima_2_forecast,PI=FALSE, series = 'ARIMA(4,1,4)') + 
+    ggtitle("LTN - ARIMA(4,1,4) - Previsão")+ xlab("") + ylab("")
+
+```
+
+
+```{r}
+mse_LTN_arima_1 <- MSE(LTN_teste, LTN_arima_1_forecast$mean)
+cat('\nErro quadrático médio (MSE) do modelo ARIMA(4,1,0) nos dados de Teste:',mse_LTN_arima_1)
+cat('\nCritério informacional de Akaike (AIC):', LTN_arima_1$aicc)
+mse_df <- mse_add(mse_df, model = 'ARIMA(4,1,0)', value = mse_LTN_arima_1, i = 4)
+
+mse_LTN_arima_2 <- MSE(LTN_teste, LTN_arima_2_forecast$mean)
+cat('\nErro quadrático médio (MSE) do modelo ARIMA(4,1,4) nos dados de Teste:',mse_LTN_arima_2)
+cat('\nCritério informacional de Akaike (AIC):', LTN_arima_2$aicc)
+cat('\n')
+mse_df <- mse_add(mse_df, model = 'ARIMA(4,1,4)', value = mse_LTN_arima_1, i = 5)
+mse_df
+```
+
+Os modelos ARIMA(4,1,0) e ARIMA(4,1,4) não apresentaram diferenças no que diz respeito ao MSE aos dados de teste. 
+
+Vamos analisar os resíduos da série produzida pelo ARIMA(4,1,0) e ARIMA(4,1,4).
+
+```{r}
+ggAcf(LTN_arima_1$residuals,30) + ggtitle('ACF - Resíduos ARIMA(4,1,0)')
+ggPacf(LTN_arima_1$residuals,30) + ggtitle('PACF - Resíduos ARIMA(4,1,0)')
+ggAcf(LTN_arima_2$residuals,30) + ggtitle('ACF - Resíduos ARIMA(4,1,4)')
+ggPacf(LTN_arima_2$residuals,30) + ggtitle('PACF - Resíduos ARIMA(4,1,4)')
+
+```
+
+Os resíduos dos modelos ARIMA não apresentam estatísticas significantes para o ACF e PACF, conduzindo à análise de que o modelo foi bem ajustado aos dados de treinamento. Contudo, avaliando a capacidade preditiva nos dados de teste, verifica-se que o modelo ARMA(4,4) apresentou o melhor desempenho. 
+
+#### GARCH
+
+Os modelos da família ARCH (autorregressivo de heterocedasticiadade condicional) servem para realizar previsão de volatilidade. É imprescindível a sua utilização nas finanças, uma vez que as séries de retorno são não-autocorrelacionadas, mas que possuem a variância condicional ao tempo. 
+
+Desse modo, realizamos o cálculo da variância da série diferenciada, como se pode verificar abaixo.
+
+```{r}
+# criação da série de volatilidade
+LTN_treinamento_diff_vol <- (LTN_treinamento_diff - mean(LTN_treinamento_diff))^2
+LTN_teste_diff_vol <- (LTN_teste_diff - mean(LTN_teste_diff))^2
+# plotando a série de volatilidade
+autoplot(LTN_treinamento_diff_vol)
+# ACF e PACF da volatilidade
+ggAcf(LTN_treinamento_diff_vol, 30) + ggtitle('ACF LTN - volatilidade')
+ggPacf(LTN_treinamento_diff_vol, 30) + ggtitle('PACF LTN - volatilidade')
+```
+
+A série de volatilidade da diferença dos Preços da LTN não apresenta autocorrelação, contudo escolhemos o modelo GARCH(1,1) para investigar sua capacidade de previsão. Segue o modelo com o gráfico dos dados de treinamento e de teste. 
+
+```{r}
+# Garch(1,1)
+LTN_garch <- garch(LTN_treinamento_diff,order=c(1,1))
+# Plotando dados de treinamento e modelo GARCH(1,1)
+autoplot(LTN_treinamento_diff_vol)+autolayer(ts(LTN_garch$fitted.values[-1,1],start=c(2015,3),frequency=256), series = 'GARCH(1,1)') + ggtitle('LTN: Volatilidade e ARCH - Treinamento')
+# Prevendo com o modelo GARCH(1,1)
+LTN_garch_forecast <- ts(predict(LTN_garch, n.ahead = 256),start=c(2018,4),end=c(2019,9),frequency=256)
+#Plotando o gráfico da previsão com os dados de teste
+autoplot(LTN_teste_diff_vol) + autolayer(LTN_garch_forecast[,1])
+
+```
+
+A seguir, apresentamos os valor do MSE para o GARCH(1,1)
+
+```{r}
+mse_LTN_garch <- MSE(LTN_teste_diff_vol[-1], LTN_garch_forecast[-1,1])
+cat('\nErro quadrático médio (MSE) do modelo GARCH(1,1) nos dados de Teste da volatilidade:',mse_LTN_garch)
+cat('\n')
+mse_df <- mse_add(mse_df, model = 'GARCH(1,1)', value = mse_LTN_garch, i = 6)
+mse_df
+
+```
+
+Vale ressaltar que o resultado do MSE do GARCH(1,1) não serve de comparação com os demais modelos, pois aquele serve para modelar a Volatilidade, sendo diferente dos demais. 
+
+#### Filtro de Kalman
+
+O filtro de Kalman é um algoritmo que utiliza medicões de grandezas ao longo do tempo que possuem ruído e outras incertezas de medida. Ele busca gerar resultados que tendam a se aproximar dos valores reais das séries temporais. Abaixo pode-se visualizar o procedimento de estimação para a série LTN. 
+
+```{r}
+set.seed(1)
+n <- length(LTN)
+LTN_matriz <- matrix(LTN, nrow=n, ncol=1)
+m1 <- SS(y = LTN_matriz, 
+         Fmat = function(tt, x, phi) return(matrix(1)),
+         Gmat = function(tt,x,phi) return(matrix(1)),
+         Wmat = function(tt,x,phi) return(matrix(0.1)),
+         Vmat = function(tt,x,phi) return(matrix(2)),
+         m0 = matrix(25), C0 = matrix(10))
+
+m1.f <- kfilter(m1)
+m1.s <- smoother(m1.f)
+m1.f_ts <- ts(m1.f$m, start = c(2015,3), end=c(2019,9), frequency = 250)
+m1.s_ts <- ts(m1.s$m, start = c(2015,3), end=c(2019,9), frequency = 250)
+
+autoplot(LTN) + autolayer(m1.f_ts, series = 'filter') + autolayer(m1.s_ts, series = 'smoothing') + ggtitle('LTN Treinamento - Filtro de Kalman') + xlab('') + ylab('')
+```
+
+O algoritmo do Filtro de Kalman é um processo iterativo que se assemelha a um aprendizado online. Dessa maneira, otpou-se por realizar o processo de treinamento e teste nos dados LTN completos. 
+
+O valor do MSE para o filtro e para a suavização estão expostos abaixo.
+
+```{r message=FALSE}
+mse_LTN_fkalman <- MSE(LTN, m1.f_ts)
+mse_LTN_skalman <- MSE(LTN, m1.s_ts)
+cat('O MSE do Filtro de Kalman = ', mse_LTN_fkalman)
+cat('\nO MSE da suavização de Kalman = ', mse_LTN_skalman)
+mse_df <- mse_add(mse_df, model = 'Filtro de Kalman', value = mse_LTN_fkalman, i = 7)
+mse_df <- mse_add(mse_df, model = 'Suavização de Kalman', value = mse_LTN_skalman, i = 8)
+mse_df
+```
+
+Diante desses resultados, verifica-se que o algoritmo Filtro/Suavização de Kalman são os modelos que apresentam os menores Erro médio de previsão (MSE).
+
+### 2ª Série Temporal: Temperatura Global 
+
+Os dados do índice de temperatura global foram coletados da database da NASA: https://data.giss.nasa.gov/gistemp/. 
+
+```{r message=FAlSE, results='hide'}
+library(tidyverse)
+library(readr)
+temp <- read_csv("TempGlobal.csv")
+```
+
+Vejamos o gráfico da série:
+```{r echo = FALSE, message=FAlSE, results='hide'}
+temp <- gather(temp, Month, value,- Year)
+temp$Date <- as.Date(paste(temp$Year, temp$Month, "01", sep = "-"),
+                         format = ("%Y-%b-%d"))
+#serie
+temp <- temp[order(temp$Date), ]
+temp <- na.omit(temp)
+temp <- ts(temp$value, st = c(1880, 1), end = c(2019,
+      6), fr = 12)
+```
+
+```{r}
+autoplot(temp) +
+  ggtitle("Temperatura Global") + 
+  xlab("") +
+  ylab("Temperatura")
+```
+
+O gráfico acima apresenta o índice de temperatura global desde janeiro de 1880 até junho de 2019.
+Vamos realizar a separação em dados de treinamento e de teste. 
+Os dados de treinamento compreenderão o período de janeiro de 2000 até dezembro de 2014, ao passo que os dados de teste compreendem o período de janeiro de 2015 até junho de 2019. 
+
+```{r}
+temp_treinamento <- window(temp, start=c(2000,1), end=c(2014,12))
+temp_teste <- window(temp, start =c(2015,1), end=c(2019,6))
+autoplot(temp_treinamento) + ggtitle('Temperatura Global - Treinamento') + xlab('') + ylab('')
+autoplot(temp_teste) + ggtitle('Temperatura Global - Teste') + xlab('') + ylab('')
+```
+
+O próximo passo será realizar a decomposição da série temporal da temperatura global. Faremos a decomposição aditiva.
+
+Decomposição Aditiva
+```{r}
+temp_treinamento %>% decompose(type="additive") %>%
+  autoplot() + xlab("Year") +
+  ggtitle("Classical additive decomposition
+    of global temperature")
+```
+
+Pela decomposição da série é possível perceber um comportamento sazonal e uma tendência estocástica, pois muda de comportamento ao longo do tempo. 
+
+O procedimento a seguir será o de tentar modelar a série de temperatura com o Holt-Winters.
+
+#### Holt-Winters
+
+O algoritmo de Holt-Winters serve para modelar séries com tendência e sazonalidade. A série de temperatura global possui sazonalidade, mas a tendência não é determinística. 
+
+```{r}
+temp_hw <- hw(temp_treinamento, damped = TRUE, seasnal = "additive", h =54)
+autoplot(temp_treinamento) +
+  autolayer(temp_hw$fitted, series = 'Holt-Winters')+
+  guides(colour = guide_legend(title ="Forecast"))
+
+temp_hw_forecast <- forecast::forecast(temp_hw, h = 54)
+
+autoplot(temp_teste) +
+  autolayer(temp_hw_forecast, PI = FALSE, series = 'Holt-Winters - Previsão')
+```
+
+O modelo de Holt-Winters não apresentou boa capacidade de previsão como se verifica no gráfico acima. A curva vermelha está distante da curva preta que é a Temperatura Global de Teste. A seguir veremos o valor do MSE para o Holt-Winter para os dados de Teste.
+
+```{r}
+
+```
+
+
+O gráfico ACF e PACF para a série de temperatura global.
+
+```{r}
+ggAcf(temp_treinamento, lag = 30)
+ggPacf(temp_treinamento, lag  = 30)
+```
+
+#### AR
+
+Conforme os gráficos ACF e PACF, selecionamos dois modelos para treinar a série de temperatura global. Os modelos são AR(2) e AR(4).
+O AR(2) foi escolhido em razão da significância da autocorrelação parcial (PACF) no 2º Lag mas não presente no 3º. Já o AR(4), pelo fato da autocorrelação parcial (PACF) apresentar significância no 4º Lag. 
+
+```{r}
+#AR(2)
+
+#AR(4)
+```
+
+
+#### ARMA
+
+```{r}
+
+```
+
+#### ARIMA
+
+```{r}
+arima <- auto.arima(window(serie2, start = c(2000,1),end = c(2018,12)))
+arima
+autoplot(forecast(arima, h = 6))
+autoplot(arima$residuals)
+ggAcf(arima$residuals)
+ggPacf(arima$residuals)
+```
+
+#### GARCH
+
+
+
+#### Filtro de Kalman
+
+
+
+### 3ª Série Temporal: Índice Ibovespa
+
+```{r echo = FALSE}
+getSymbols('^BVSP', start = '2000-01-01', end = Sys.Date())
+```
+
+
+```{r}
+bvsp <- BVSP$BVSP.Close
+autoplot(bvsp) + ggtitle('Índice Ibovespa de fechamento')
+```
+
+```{r}
+ggAcf(bvsp,30)
+ggPacf(bvsp,30)
+```
+
+#### Holt-Winters
+
+```{r}
+
+```
+
+
+#### AR
+
+```{r}
+
+```
+
+#### ARMA
+
+```{r}
+
+```
+
+#### ARIMA
+
+```{r}
+
+```
+
+#### GARCH
+
+```{r}
+
+```
+
+#### Filtro de Kalman
+
+```{r}
+
+```
+

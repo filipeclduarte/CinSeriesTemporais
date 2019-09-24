@@ -1,0 +1,121 @@
+---
+title: "Global Temperature"
+output: html_notebook
+---
+
+### Evaluation of the Global Temperature
+
+Importing the dataset
+```{r}
+library(tidyverse)
+library(readr)
+serie <- read_csv("TempGlobal.csv")
+```
+
+See the dataset 
+```{r}
+glimpse(serie)
+```
+
+Stacking the data to create a Time Series Object
+```{r}
+serie <- gather(serie, Month, value,- Year)
+```
+
+Creating the date column:
+```{r}
+serie$Date <- as.Date(paste(serie$Year, serie$Month, "01", sep = "-"),
+                         format = ("%Y-%b-%d"))
+#serie
+serie <- serie[order(serie$Date), ]
+serie
+serie <- na.omit(serie)
+head(serie,20)
+tail(serie,20)
+```
+
+Transforming the series in a time series object
+```{r}
+serie <- ts(serie$value, st = c(1880, 1), end = c(2019,
+      6), fr = 12)
+plot(serie, type='l')
+```
+
+```{r}
+library(ggplot2)
+library(forecast)
+autoplot(serie) +
+  ggtitle("Global Temperature") + 
+  xlab("Year") +
+  ylab("Temperature")
+```
+
+Seasonal plot
+```{r}
+ggseasonplot(serie, year.labels=TRUE, year.labels.left=TRUE) +
+  ylab("Temperature") +
+  ggtitle("Seasonal plot: global temperature")
+```
+
+ACF
+```{r}
+ggAcf(serie, lag = 30)
+```
+
+PACF
+```{r}
+ggPacf(serie, lag  = 30)
+```
+
+Additive decomposition
+```{r}
+serie %>% decompose(type="additive") %>%
+  autoplot() + xlab("Year") +
+  ggtitle("Classical additive decomposition
+    of global temperature")
+```
+Multiplicative decomposition
+```{r}
+serie %>% decompose(type="multiplicative") %>%
+  autoplot() + xlab("Year") +
+  ggtitle("Classical multiplicative decomposition
+    of global temperature")
+```
+
+```{r}
+
+autoplot(hyndsight) +
+  autolayer(fc, series="HW multi damped", PI=FALSE)+
+  guides(colour=guide_legend(title="Daily forecasts"))
+```
+
+```{r}
+fc <- hw(window(serie, start = c(2000,1),end = c(2018,12)), damped = TRUE, seasnal = "multiplicative", h = 6)
+serie2 <- window(serie, start = c(2000,1), end = c(2019,6))
+autoplot(serie2) +
+  autolayer(fc, series = "HW multi damped", PI = FALSE)+
+  guides(colour = guide_legend(title ="Forecast"))
+```
+
+```{r}
+arima <- auto.arima(window(serie, start = c(2000,1),end = c(2018,12)))
+arima
+autoplot(forecast(arima, h = 6))
+autoplot(arima$residuals)
+ggAcf(arima$residuals)
+ggPacf(arima$residuals)
+```
+
+Neural Network Residuals
+```{r}
+fit <- nnetar(serie2, lambda = 0)
+autoplot(forecast(fit,h=6))
+fcast <- forecast(fit, PI=TRUE, h=6)
+autoplot(fcast)
+```
+```{r}
+ets(serie2) %>% 
+  forecast(h=6) %>% 
+  autoplot()
+```
+

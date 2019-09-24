@@ -1,0 +1,164 @@
+---
+title: "Aula_3"
+output: html_notebook
+---
+
+## Aula 3 - Cap. 5 e 6
+
+### Capítulo 5 - Regressão
+
+#### Modelos Lineares
+
+Um modelo para uma série temporal {$x_t : t = 1,...,n$} é linear se ela pode ser expressa como:
+
+$$ x_t = \alpha _0 + \alpha _1 \mu _{1,t} + \alpha _2 \mu _{2,t} + ... +\alpha _m u_{m,t} + z_t$$ 
+
+
+#### Simulação
+
+Gerando um modelo em que a tendência é linear e o wt é um ar(1) com o alpha = 0.8 e um wt que é um ruído branco gaussiano:
+```{r}
+set.seed(1)
+z <- w <- rnorm(100, sd =20)
+for(t in 2:100){
+  z[t] <-  0.8*z[t - 1] + w[t]
+}
+Time <- 1:100
+x <- 50 + 3*Time + z
+```
+
+Gráfico da simulação:
+```{r}
+plot(x, xlab = "time", type = "l")
+```
+
+Fazendo a regressão no tempo e avaliando o resíduo:
+```{r}
+x.lm <- lm(x ~ Time)
+acf(resid(x.lm))
+pacf(resid(x.lm))
+```
+Agora vou gerar um modelo com desvio padrão = 50
+
+```{r}
+set.seed(1)
+z <- w <- rnorm(100, sd = 50)
+for(t in 2:100){
+  z[t] <- 0.8*z[t-1] + w[t]
+}
+Time <- 1:100
+x <- 50 + 3*Time + z
+```
+
+Visualizando a série
+```{r}
+plot(x, xlab = "Time",  type = "l")
+```
+```{r}
+x.lm <- lm(x ~ Time)
+acf(resid(x.lm))
+pacf(resid(x.lm))
+```
+
+
+#### Ajuste do modelo da série de temperatura
+
+```{r}
+library(readr)
+getwd()
+setwd("/Users/filipeduarte/R/CinSeriesTemporais/Repositorio_Introductory_Time_Series")
+www <- "global.dat"
+serie <- read_table(www,col_names = FALSE)
+```
+
+```{r}
+str(serie)
+```
+```{r}
+library(tidyr)
+months <- format(seq.Date(as.Date("2013-01-01"), as.Date("2013-12-01"), 
+                          by = "month"), format = "%b")
+colnames(serie) <- months
+#serie
+serie$Year <- seq(1856,2005)
+#serie
+serie <- gather(serie, variable, value,- Year)
+#serie
+serie$Date <- as.Date(paste(serie$Year, serie$variable, "01", sep = "-"),
+                         format = ("%Y-%b-%d"))
+serie <- serie[order(serie$Date), ]
+serie
+```
+
+
+```{r}
+serie <- ts(serie$value, st = c(1856, 1), end = c(2005,
+      12), fr = 12)
+plot(serie[1:1000], type='l')
+```
+
+
+```{r}
+temp <- window(serie, start = c(1970,1), end = c(2005,12))
+print(temp)
+temp.lm <- lm(temp ~ time(temp))
+coef(temp.lm)
+```
+
+```{r}
+confint(temp.lm)
+```
+
+```{r}
+acf(resid(lm(temp ~ time(temp))))
+```
+
+#### Usando o GLS - Generalised Least Squares 
+
+Corrigir porque os erros são autocorrelacionados
+
+```{r}
+library(nlme)
+x.gls <- gls(x ~ Time, cor = corAR1(0.8))
+coef(x.gls)
+sqrt(diag(vcov(x.gls)))
+```
+
+```{r}
+plot(temp)
+```
+
+```{r}
+temp.gls <- gls(temp ~ time(temp), cor = corAR1(0.7))
+confint(temp.gls)
+```
+
+#### Linear models with Seasonal variables
+
+##### Indicador sazonal 
+
+$$
+x_t = m_t +s_t +z_t
+$$
+
+
+```{r}
+Seas <- cycle(temp)
+Time <- time(temp)
+temp.lm <- lm(temp ~ 0 + Time + factor(Seas))
+coef(temp.lm)
+```
+
+```{r}
+set.seed(1)
+TIME <- 1:(10 * 12)
+TIME
+w <- rnorm(10 * 12, sd = 0.5)
+Trend <- 0.1 + 0.005 * TIME + 0.001 * TIME^2
+Seasonal <- sin(2*pi*TIME/12) + 0.2*sin(2*pi*2*TIME/12) +
+               0.1*sin(2*pi*4*TIME/12) + 0.1*cos(2*pi*4*TIME/12)
+x <- Trend + Seasonal + w
+plot(x, type = "l")
+```
+
+
